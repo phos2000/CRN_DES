@@ -41,12 +41,12 @@ params = list(
   rrStatinsASCVD = 0.79,
   rrStatinsASCVD_low = 0.77,
   rrStatinsASCVD_upp = 0.81,
-  rrStatinsASCVD_dist = "lnorm",
+  rrStatinsASCVD_dist = "lognormal",
   
   hrAfterASCVD = 1.9,
   hrAfterASCVD_low = 1.60,
   hrAfterASCVD_upp = 2.40, 
-  hrAfterASCVD_dist = "lnorm", # log-normal
+  hrAfterASCVD_dist = "lognormal", # log-normal
   
   mortalityFirstYearASCVD_female_young = 0.09,
   mortalityFirstYearASCVD_female_young_dist = "beta",
@@ -152,7 +152,7 @@ RateToProb = function(rate, t){
 params$cont_discount_rate <- -log(1- params$annual_discount_rate) # Yearly Time Scale
 discounted <- function(undiscounted, start_year, end_year, rate = params$cont_discount_rate)
 {
-  undiscounted/ (exp(-rate*(end_year-start_year)))
+  undiscounted/ (exp(rate*(end_year-start_year)))
 }
 
 discount <- function(value, A, ar=params$annual_discount_rate) value / (1+ar)^A
@@ -163,7 +163,7 @@ discount <- function(value, A, ar=params$annual_discount_rate) value / (1+ar)^A
 attributes and events for random:
 
 | location                     | attributes/events    | without CRN                                                                                  | with CRN                                                                                                                                    |
-|-----------------|-----------------|-----------------|--------------------|
+|------------------|------------------|------------------|--------------------|
 | initialize_patient           | **nhanesNo**         | sample(1:nrow(nhanes_pop), 1, prob=1/nhanes_pop\$WTMEC2YR))                                  | nhanes_pop\$cum_weight = cumsum(nhanes_pop\$WTMEC2YR / sum(nhanes_pop\$WTMEC2YR))                                                           |
 | years_till_death_without_CVD | **aDeathWithoutCVD** | rgompertz(1, shape, rate)                                                                    | qgompertz(inputs\$randomNums[(get_attribute(env,"patientID"))\*length(rCRN) + rCRN["rDeathWithoutCVD"]], shape, rate)                       |
 | years_till_get_CVD           | **aGetCVD**          | rexp(1,ProbToRate(prob, 10))                                                                 | qexp(inputs\$randomNums[(get_attribute(env,"patientID"))\*length(rCRN) + rCRN["rGetCVD"]], ProbToRate(prob, 10))                            |
@@ -871,14 +871,14 @@ results <- NULL
 attributes <- NULL
 
 for (strategy in 0:1){
-  inputs$strategy = strategy
-  
-  run <- exec.simulation(inputs)
+  params$strategy = strategy
+
+  run <- exec.simulation(params)
   run$strategy <- strategy
-  
+
   at <- arrange(get_mon_attributes(env),name,key,time) #obtain attributes data
   at$strategy <- strategy
-  
+
   if(is.null(results)) { results <- run } else  {results <- rbind(results, run)}
   if(is.null(attributes)) { attributes <- at } else  {attributes <- rbind(attributes, at)}
   rm(run)
@@ -1040,18 +1040,54 @@ if (is.null(trace$statins_major_adverse_event)) {trace$statins_major_adverse_eve
 ## Statins CEA
 
 ```{r cost-utility-func}
+## set the cHealthcareNonCVD to be linear
+# x <- c(31.5, 55, 80)
+# y <- c(3901, 8693, 12441)
+# 
+# model_bgcost <- lm(y ~ x)
+# intercept_bgcost = coef(model_bgcost)[1]
+# slope_bgcost = coef(model_bgcost)[2]
+# 
+# x <- c(50, 60, 70, 80, 90)
+# y <- c((10.1+4.2)/2/100, (21.4+8.9)/2/100, (34.6+20.0)/2/100, (59.2+40.2)/2/100, (74.4+65.2)/2/100)
+# 
+# model_cvdpct <- lm(y ~ x)
+# intercept_cvdpct = coef(model_cvdpct)[1]
+# slope_cvdpct = coef(model_cvdpct)[2]
+
+cHealthy = function(inputs, age) {
+  x <- c(31.5, 55, 80)
+  y <- c(3901, 8693, 12441)
+
+  model_bgcost <- lm(y ~ x)
+  intercept_bgcost = coef(model_bgcost)[1]
+  slope_bgcost = coef(model_bgcost)[2]
+
+  x <- c(50, 60, 70, 80, 90)
+  y <- c((10.1+4.2)/2/100, (21.4+8.9)/2/100, (34.6+20.0)/2/100, (59.2+40.2)/2/100, (74.4+65.2)/2/100)
+
+  model_cvdpct <- lm(y ~ x)
+  intercept_cvdpct = coef(model_cvdpct)[1]
+  slope_cvdpct = coef(model_cvdpct)[2]
+  
+  cvdpct = max(intercept_cvdpct + slope_cvdpct*age,0)
+
+  (intercept_bgcost + slope_bgcost*age - cvdpct*(inputs$cAnnualFU_afterASCVD + inputs$cNonFatalASCVD/10)) / (1 - cvdpct)
+}
+
 basic_CVD_costs = function(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age) {
   cost = 0
   ##cHealthcareNonCVD
-  if (initial_age < 45) {
-    cost = cost + inputs$rInflation2019 * inputs$cHealthcareNonCVD_18_44 * (min(45, time_in_model + initial_age) - initial_age) + inputs$rInflation2019 * inputs$cHealthcareNonCVD_45_64 * (max(time_in_model + initial_age, 45) - 45)
-  } else if (initial_age >= 45 & initial_age < 55) {
-    cost = cost + inputs$rInflation2019 * inputs$cHealthcareNonCVD_45_64 * time_in_model
-  } else if (initial_age >= 55 & initial_age < 65) {
-    cost = cost + inputs$rInflation2019 * inputs$cHealthcareNonCVD_45_64 * (min(65, time_in_model + initial_age) - initial_age) + inputs$rInflation2019 * inputs$cHealthcareNonCVD_65 * (max(time_in_model + initial_age, 65) - 65)
-  } else {
-    cost = cost + inputs$rInflation2019 * inputs$cHealthcareNonCVD_65 * time_in_model
-  }
+  # if (initial_age < 45) {
+  #   cost = cost + inputs$rInflation2019 * inputs$cHealthcareNonCVD_18_44 * (min(45, time_in_model + initial_age) - initial_age) + inputs$rInflation2019 * inputs$cHealthcareNonCVD_45_64 * (max(time_in_model + initial_age, 45) - 45)
+  # } else if (initial_age >= 45 & initial_age < 55) {
+  #   cost = cost + inputs$rInflation2019 * inputs$cHealthcareNonCVD_45_64 * time_in_model
+  # } else if (initial_age >= 55 & initial_age < 65) {
+  #   cost = cost + inputs$rInflation2019 * inputs$cHealthcareNonCVD_45_64 * (min(65, time_in_model + initial_age) - initial_age) + inputs$rInflation2019 * inputs$cHealthcareNonCVD_65 * (max(time_in_model + initial_age, 65) - 65)
+  # } else {
+  #   cost = cost + inputs$rInflation2019 * inputs$cHealthcareNonCVD_65 * time_in_model
+  # }
+  cost = cost + sum(sapply(initial_age:floor(min(ifelse(is.na(get_CVD),Inf,get_CVD),time_in_model)+initial_age), function(x) cHealthy(inputs, x)))
   
   # FatalASCVD
   if(!is.na(get_CVD) & !is.na(death_of_ASCVD)) {
@@ -1067,7 +1103,7 @@ basic_CVD_costs = function(inputs, death_after_ASCVD, death_of_ASCVD, death_with
 
 adjustment_statins_costs = function(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model){
   if (statins_use == 1){
-    inputs$cAnnualStatin * min(get_CVD, time_in_model) * inputs$rInflation2017 + 
+    inputs$cAnnualStatin * min(ifelse(is.na(get_CVD),Inf,get_CVD),time_in_model) * inputs$rInflation2017 + 
     ifelse(!is.na(statins_major_adverse_event), inputs$cMajorStatinAdverse, ifelse(!is.na(statins_mild_adverse_event), inputs$cMildStatinAdverse, 0))
   } else 0
 }
@@ -1101,12 +1137,63 @@ adjusted_statins_utilities = function(inputs, statins_use, statins_mild_adverse_
 }
 ```
 
+## Discounting
+
+```{r discounted}
+basic_CVD_costs_discounted = function(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age) {
+  cost = 0
+  ##cHealthcareNonCVD
+  cost = cost + discounted(sum(sapply(initial_age:floor(min(ifelse(is.na(get_CVD),Inf,get_CVD),time_in_model)+initial_age), function(x) cHealthy(inputs, x))), start_year = 0, end_year = min(ifelse(is.na(get_CVD),Inf,get_CVD),time_in_model))
+  
+  # FatalASCVD
+  if(!is.na(get_CVD) & !is.na(death_of_ASCVD)) {
+    cost = cost + discount(inputs$rInflation2017 * inputs$cFatalASCVD, A = death_of_ASCVD)
+  }
+  
+  # Non-Fatal ASCVD
+  if(!is.na(get_CVD) & is.na(death_of_ASCVD)) {
+    cost = cost + discount(inputs$rInflation2017 * inputs$cNonFatalASCVD, A= get_CVD) + discounted(inputs$rInflation2017 * inputs$cAnnualFU_afterASCVD * (time_in_model - get_CVD - 0.5), start_year = get_CVD + 0.5, end_year = time_in_model)
+  }
+  return(cost)
+}
+
+adjustment_statins_costs_discounted = function(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model){
+  if (statins_use == 1){
+    discounted(inputs$cAnnualStatin * min(ifelse(is.na(get_CVD),Inf,get_CVD),time_in_model) * inputs$rInflation2017, start_year = 0, end_year = min(ifelse(is.na(get_CVD),Inf,get_CVD),time_in_model)) +
+    ifelse(!is.na(statins_major_adverse_event), discount(inputs$cMajorStatinAdverse, A=0), ifelse(!is.na(statins_mild_adverse_event), discount(inputs$cMildStatinAdverse,A=0), 0))
+  } else 0
+}
+
+adjusted_statins_utilities_discounted = function(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model){
+  if (statins_use == 1) {
+    if (!is.na(statins_major_adverse_event)){
+      uStatins = inputs$uHealthyStatin - inputs$uPenaltyMajorStatinAdverse
+    } else if (!is.na(statins_mild_adverse_event)) {
+      uStatins = inputs$uHealthyStatin - inputs$uPenaltyMildStatinAdverse
+    } else {
+      uStatins = inputs$uHealthyStatin
+    }
+    
+    if (is.na(get_CVD)) { discounted(uStatins * time_in_model, start_year = 0, end_year = time_in_model)}
+    else { discounted(uStatins * get_CVD, start_year = 0, end_year = get_CVD) + discounted(inputs$uAfterASCVD * (time_in_model - get_CVD), start_year = get_CVD, end_year = time_in_model)}
+  
+    } else {
+    if (is.na(get_CVD)) {
+      return(discounted(inputs$uHealthy * time_in_model, start_year = 0, end_year = time_in_model))
+    } else {
+      return(discounted(inputs$uHealthy * get_CVD, start_year = 0, end_year = get_CVD) + discounted(inputs$uAfterASCVD * (time_in_model - get_CVD), start_year = get_CVD, end_year = time_in_model))
+      }
+  }
+}
+
+```
+
+
 ```{r cea}
 patientWcea = trace %>% 
   rowwise() %>%
   mutate(
-  cost = basic_CVD_costs(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age),
-  #+ adjustment_statins_costs(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
+  cost = basic_CVD_costs(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age) + adjustment_statins_costs(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
   utility = adjusted_statins_utilities(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
     )
 
@@ -1137,9 +1224,7 @@ plot(df_cea, label = "all", txtsize = 16) +
   theme(legend.position = c(0.8, 0.2))
 ```
 
-## Discounting
 
-work-on
 
 ```{r check}
 # pcr(ifelse(casted[2,"Gender"] == 1, "M", "F"), 
@@ -1219,9 +1304,8 @@ RIPS_CVD_run = function(inputs){
   patientWcea = trace %>% 
     rowwise() %>%
     mutate(
-      cost = basic_CVD_costs(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age),
-  #+ adjustment_statins_costs(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
-      utility = adjusted_statins_utilities(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model))
+      cost = basic_CVD_costs_discounted(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age) + adjustment_statins_costs_discounted(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
+      utility = adjusted_statins_utilities_discounted(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model))
 
   strategyWcea = patientWcea %>% 
     group_by(strategy) %>%
@@ -1243,43 +1327,43 @@ RIPS_CVD_run = function(inputs){
 ```
 
 ```{r test}
-o1 = RIPS_CVD_run(params_CRN)
-o2 = RIPS_CVD_run(params_CRN)
-
-repeatSets1 = o1$attributes %>% filter((key == "aGetCVD" | key == "aStatinsMildAdverse" | key == "aStatinsMajorAdverse") & is.infinite(value))
-
-  casted1 = setdiff(o1$attributes, repeatSets1) %>% select(-replication, -time) %>% spread(key, value)
-  
-  trace1 = o1$results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
-  left_join(casted1 %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
-
-  if (is.null(trace1$statins_major_adverse_event)) {trace1$statins_major_adverse_event = NA}
-
-repeatSets2 = o2$attributes %>% filter((key == "aGetCVD" | key == "aStatinsMildAdverse" | key == "aStatinsMajorAdverse") & is.infinite(value))
-
-  casted2 = setdiff(o2$attributes, repeatSets1) %>% select(-replication, -time) %>% spread(key, value)
-  
-  trace2 = o2$results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
-  left_join(casted2 %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
-
-  if (is.null(trace2$statins_major_adverse_event)) {trace2$statins_major_adverse_event = NA}
-  
-which(trace1 != trace2, arr.ind = TRUE)
-  
-  patientWcea = trace %>% 
-    rowwise() %>%
-    mutate(
-      cost = basic_CVD_costs(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age),
-  #+ adjustment_statins_costs(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
-      utility = adjusted_statins_utilities(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model))
-
-  strategyWcea = patientWcea %>% 
-    group_by(strategy) %>%
-      summarize(
-        time_in_model = mean(time_in_model),
-        cost = mean(cost), 
-        QALY = mean(utility)) %>%
-    mutate(strategy = ifelse(strategy == 1, "Statins(2013 ACC/AHA)", "Status Quo"))
+# o1 = RIPS_CVD_run(params_CRN)
+# o2 = RIPS_CVD_run(params_CRN)
+# 
+# repeatSets1 = o1$attributes %>% filter((key == "aGetCVD" | key == "aStatinsMildAdverse" | key == "aStatinsMajorAdverse") & is.infinite(value))
+# 
+#   casted1 = setdiff(o1$attributes, repeatSets1) %>% select(-replication, -time) %>% spread(key, value)
+#   
+#   trace1 = o1$results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
+#   left_join(casted1 %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
+# 
+#   if (is.null(trace1$statins_major_adverse_event)) {trace1$statins_major_adverse_event = NA}
+# 
+# repeatSets2 = o2$attributes %>% filter((key == "aGetCVD" | key == "aStatinsMildAdverse" | key == "aStatinsMajorAdverse") & is.infinite(value))
+# 
+#   casted2 = setdiff(o2$attributes, repeatSets1) %>% select(-replication, -time) %>% spread(key, value)
+#   
+#   trace2 = o2$results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
+#   left_join(casted2 %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
+# 
+#   if (is.null(trace2$statins_major_adverse_event)) {trace2$statins_major_adverse_event = NA}
+#   
+# which(trace1 != trace2, arr.ind = TRUE)
+#   
+#   patientWcea = trace %>% 
+#     rowwise() %>%
+#     mutate(
+#       cost = basic_CVD_costs(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age),
+#   #+ adjustment_statins_costs(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
+#       utility = adjusted_statins_utilities(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model))
+# 
+#   strategyWcea = patientWcea %>% 
+#     group_by(strategy) %>%
+#       summarize(
+#         time_in_model = mean(time_in_model),
+#         cost = mean(cost), 
+#         QALY = mean(utility)) %>%
+#     mutate(strategy = ifelse(strategy == 1, "Statins(2013 ACC/AHA)", "Status Quo"))
 
 
 ```

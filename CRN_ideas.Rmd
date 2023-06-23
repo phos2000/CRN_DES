@@ -11,9 +11,7 @@ output:
 
 ***Methods:***
 
-Based on 2017-2018 National Health and Nutrition Examination Survey database, we developed a DES model to evaluate the cost-effectiveness of statin treatment in people aged 40 to 80 in the US at risk of atherosclerotic cardiovascular disease(ASCVD) over a 10-year horizon. 
-
-
+Based on 2017-2018 National Health and Nutrition Examination Survey database, we developed a DES model to evaluate the cost-effectiveness of statin treatment in people aged 40 to 80 in the US at risk of atherosclerotic cardiovascular disease(ASCVD) over a 10-year horizon. Every possible event withn an indvidual, including death due to background mortality, fatal ASCVD event, non-fatal ASCVD, death after ASCVD and statin adverse event was assigned an independent random number which is individual-specific and event-specific but stay the same ("common") across model runs. The random number was used to be compared to the alterable probability and determine the stochastic event.
 
 ***Results:***
 
