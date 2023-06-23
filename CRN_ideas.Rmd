@@ -1,0 +1,20 @@
+---
+title: "Common Random Numbers Application in Discrete Event Simulation for Disease Modeling"
+author: "Astrid Yu, Jinyi Zhu, John Graves"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    code_folding: "hide"
+---
+
+***Purpose:*** Disease simulation techniques including Markov model, micro-simulation and discrete event simulation(DES) contribute to the decision-making progress for the health-related policies. Stochastic noise can always be distracting and overlap the true difference between strategies, which lead to more effort and higher cost in time and computational resource. Common random numbers(CRN) helps to reduce the variance between model runs and emphasize the effect of changing parameters of modeler's interest. Compared to micro-simulation, less research and application of CRN have been found among previous literature using DES for disease simulation modeling. We provide a application of CRN to demonstrate its advantages in DES. 
+
+***Methods:***
+
+Based on 2017-2018 National Health and Nutrition Examination Survey database, we developed a DES model to evaluate the cost-effectiveness of statin treatment in people aged 40 to 80 in the US at risk of atherosclerotic cardiovascular disease(ASCVD) over a 10-year horizon. 
+
+
+
+***Results:***
+
+***Conclusions:***
