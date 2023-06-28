@@ -190,7 +190,7 @@ params_CRN$randomNums = runif(params_CRN$nRN)
 We use Gompertz model based on US cause-deleted life table to predict the death age.
 
 ```{r source}
-source("nonCVD_life_table.R")
+# source("nonCVD_life_table.R")
 ```
 
 ```{r life-table-gompertz}
@@ -1193,8 +1193,8 @@ adjusted_statins_utilities_discounted = function(inputs, statins_use, statins_mi
 patientWcea = trace %>% 
   rowwise() %>%
   mutate(
-  cost = basic_CVD_costs(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age) + adjustment_statins_costs(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
-  utility = adjusted_statins_utilities(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
+  cost = basic_CVD_costs(params, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age) + adjustment_statins_costs(params, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
+  utility = adjusted_statins_utilities(params, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
     )
 
 patientWcea %>%
@@ -1413,8 +1413,8 @@ results_woCRN$statins %>%
 ## With CRN
 
 ```{r wCRN}
-params_PSA = params_CRN
-rrStatinsASCVD_1000draws = randomDraw("rrStatinsASCVD",params_PSA,1000)
+# params_PSA = params_CRN
+# rrStatinsASCVD_1000draws = randomDraw("rrStatinsASCVD",params_PSA,1000)
 
 results_wCRN = list()
 results_wCRN$statins = data.frame(NULL)
