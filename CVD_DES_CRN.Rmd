@@ -30,7 +30,7 @@ params = list(
   ## basic/general from Stroke paper, 2023
   strategy = 0, # or 1
   vN = 1000,
-  vHorizon = 10,
+  vHorizon = 100, # all people should terminate before horizon
   discount_rate = 0.03,
   wtp = 100000,
   CPI2017 = 245.12,
@@ -1376,15 +1376,16 @@ RIPS_CVD_run = function(inputs){
 
 ```{r woCRN}
 params_PSA = params
-rrStatinsASCVD_1000draws = randomDraw("rrStatinsASCVD",params_PSA,1000)
+rrStatinsASCVD_100draws = randomDraw("rrStatinsASCVD",params_PSA,100)
+n_cores = detectCores()
 
-results_woCRN = list()
-results_woCRN$statins = data.frame(NULL)
-results_woCRN$quo = data.frame(NULL)
+# results_woCRN = list()
+# results_woCRN$statins = data.frame(NULL)
+# results_woCRN$quo = data.frame(NULL)
 
-for (i in 1:1000){
+results_woCRN = mclapply(1:100, mc.cores = n_cores, function(i){
   print(paste0(i))
-  params_PSA$rrStatinsASCVD = rrStatinsASCVD_1000draws[i]
+  params_PSA$rrStatinsASCVD = rrStatinsASCVD_100draws[i]
   
   time_start <- Sys.time()
   result = RIPS_CVD_run(params_PSA)
@@ -1395,17 +1396,20 @@ for (i in 1:1000){
            rrStatinsASCVD = rrStatinsASCVD_100draws[i],
            time = time_end - time_start)
   
-    if(is.null(results_woCRN$statins)){
-      results_woCRN$statins <- result[result$Strategy == "Statins(2013 ACC/AHA)",]
-    } else {results_woCRN$statins <- rbind.data.frame(results_woCRN$statins, result[result$Strategy == "Statins(2013 ACC/AHA)",])}
+  #   if(is.null(results_woCRN$statins)){
+  #     results_woCRN$statins <- result[result$Strategy == "Statins(2013 ACC/AHA)",]
+  #   } else {results_woCRN$statins <- rbind.data.frame(results_woCRN$statins, result[result$Strategy == "Statins(2013 ACC/AHA)",])}
+  # 
+  # if(is.null(results_woCRN$quo)){
+  #     results_woCRN$quo <- result[result$Strategy == "Status Quo",]
+  # } else {results_woCRN$quo <- rbind.data.frame(results_woCRN$quo, result[result$Strategy == "Status Quo",])}
   
-  if(is.null(results_woCRN$quo)){
-      results_woCRN$quo <- result[result$Strategy == "Status Quo",]
-  } else {results_woCRN$quo <- rbind.data.frame(results_woCRN$quo, result[result$Strategy == "Status Quo",])}
-  
-}
+  return(result)
+})
 
-results_woCRN$statins %>%
+ref = bind_rows(results_woCRN)
+
+ref %>%
   ggplot(aes(x = rrStatinsASCVD, y = Effect)) +
   geom_line()
 ```
@@ -1413,14 +1417,14 @@ results_woCRN$statins %>%
 ## With CRN
 
 ```{r wCRN}
-# params_PSA = params_CRN
+params_PSA = params_CRN
 # rrStatinsASCVD_1000draws = randomDraw("rrStatinsASCVD",params_PSA,1000)
 
 results_wCRN = list()
 results_wCRN$statins = data.frame(NULL)
 results_wCRN$quo = data.frame(NULL)
 
-for (i in 1:1000){
+for (i in 1:100){
   print(paste0(i))
   params_PSA$rrStatinsASCVD = rrStatinsASCVD_100draws[i]
   
@@ -1444,5 +1448,8 @@ for (i in 1:1000){
 
 results_wCRN$statins %>%
   ggplot(aes(x = rrStatinsASCVD, y = Effect)) +
-  geom_line()
+  geom_line() +
+  geom_point()
+
+save(results_woCRN, results_wCRN, file = "withoutCRN.RData")
 ```
