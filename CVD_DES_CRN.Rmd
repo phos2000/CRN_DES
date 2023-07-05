@@ -988,7 +988,7 @@ casted %>% filter(!is.na(AgeCVD) & !is.na(AgeDeathNonCVD)) %>%
 ```{r repeat}
 # results %>% filter(resource == "time_in_model") %>% mutate(time_in_model = activity_time) %>% select(name, time_in_model)
 
-repeatNames2 = results %>% filter(resource != "time_in_model") %>% count(name, resource) %>% filter(n > 1) %>% pull(name)
+results %>% filter(resource != "time_in_model") %>% count(name, strategy, resource) %>% filter(n > 1) %>% pull(name)
 
 # attributes %>% filter(name %in% repeatNames2) %>% filter(time > 0)
 # there will no repeated death_with_CVD because the repeat will only happen after the event happen, but for death the event will terminate all. 
@@ -1194,7 +1194,7 @@ patientWcea = trace %>%
   rowwise() %>%
   mutate(
   cost = basic_CVD_costs(params, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age) + adjustment_statins_costs(params, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
-  utility = adjusted_statins_utilities(params, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
+  utility = adjusted_statins_utilities(params, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model)
     )
 
 patientWcea %>%
@@ -1317,7 +1317,8 @@ RIPS_CVD_run = function(inputs){
 
   df_cea = calculate_icers(cost = strategyWcea$cost,
                          effect = strategyWcea$QALY,
-                         strategies = strategyWcea$strategy)
+                         strategies = strategyWcea$strategy) %>%
+    left_join(strategyWcea %>% select(Strategy = strategy, LE = time_in_model))
 
 #   outputs$results = results
 #   outputs$attributes = attributes
@@ -1368,8 +1369,38 @@ RIPS_CVD_run = function(inputs){
 
 ```
 
-```{r dsa-way}
+## convergence
 
+```{r convergence}
+converge_compare = NULL
+
+for (vN in 10^(2:4)){
+  params$vN = vN
+  print(vN)
+  
+  converge = mclapply(1:10, mc.cores = n_cores, function(i){
+  
+  time_start <- Sys.time()
+  result = RIPS_CVD_run(params)
+  time_end <- Sys.time()
+  
+  result = result %>%
+    mutate(NHB = Effect*params_PSA$wtp - Cost,
+           vN = params$vN,
+           time = time_end - time_start)
+  
+  return(result)
+})
+  
+  if (is.null(converge_compare)){converge_compare = bind_rows(converge)} else {
+    converge_compare = rbind(converge_compare, bind_rows(converge))
+  }
+}
+
+converge_compare %>%
+  group_by(Strategy, vN) %>%
+  mutate(#mean = mean(NHB),
+    distance = (NHB - mean(NHB))/(mean(NHB)))
 ```
 
 ## Without CRN
@@ -1409,9 +1440,13 @@ results_woCRN = mclapply(1:100, mc.cores = n_cores, function(i){
 
 ref = bind_rows(results_woCRN)
 
+ref = ref %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% left_join(ref %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
+  mutate(INHB = NHB_statins - NHB_quo)
+  
 ref %>%
-  ggplot(aes(x = rrStatinsASCVD, y = Effect)) +
-  geom_line()
+  ggplot(aes(x = rrStatinsASCVD, y = INHB)) +
+  geom_line() +
+  geom_point()
 ```
 
 ## With CRN
