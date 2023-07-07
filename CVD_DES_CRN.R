@@ -875,20 +875,21 @@ adjusted_statins_utilities_discounted = function(inputs, statins_use, statins_mi
 ## ----draws--------------------------------------------------------------------------------------------------------------------
 source("random_draws_for_CVD_PSAs.R")
 
-RIPS_CVD_run = function(inputs){
+# output is the dataset
+RIPS_CVD_data = function(inputs){
   results <- NULL
   attributes <- NULL
   #outputs <- list()
-
+  
   for (strategy in 0:1){
     inputs$strategy = strategy
-  
+    
     run <- exec.simulation(inputs)
     run$strategy <- strategy
-  
+    
     at <- arrange(get_mon_attributes(env),name,key,time) #obtain attributes data
     at$strategy <- strategy
-  
+    
     if(is.null(results)) { results <- run } else  {results <- rbind(results, run)}
     if(is.null(attributes)) { attributes <- at } else  {attributes <- rbind(attributes, at)}
     rm(run)
@@ -896,12 +897,12 @@ RIPS_CVD_run = function(inputs){
   }
   
   repeatSets = attributes %>% filter((key == "aGetCVD" | key == "aStatinsMildAdverse" | key == "aStatinsMajorAdverse") & is.infinite(value))
-
+  
   casted = setdiff(attributes, repeatSets) %>% select(-replication, -time) %>% spread(key, value)
   
   traces = results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
-  left_join(casted %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
-
+    left_join(casted %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
+  
   if (is.null(traces$statins_major_adverse_event)) {traces$statins_major_adverse_event = NA}
   
   # patientWcea = traces %>% 
@@ -909,7 +910,7 @@ RIPS_CVD_run = function(inputs){
   #   mutate(
   #     cost_disc = basic_CVD_costs_discounted(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age) + adjustment_statins_costs_discounted(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
   #     util_disc = adjusted_statins_utilities_discounted(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model))
-
+  
   cost_util = calc_cost_util(death_of_ASCVD_vec = traces$death_of_ASCVD,
                              get_CVD_vec = traces$get_CVD, 
                              time_in_model_vec = traces$time_in_model, 
@@ -936,6 +937,15 @@ RIPS_CVD_run = function(inputs){
                              uPenaltyMajorStatinAdverse = inputs$uPenaltyMajorStatinAdverse)
   
   patientWcea = cbind(traces, cost_util)
+  
+  return(patientWcea)
+}
+
+# output is the ICER
+
+RIPS_CVD_run = function(inputs){
+  
+  patientWcea = RIPS_CVD_data(inputs)
   
   strategyWcea = patientWcea %>% 
     group_by(strategy) %>%
