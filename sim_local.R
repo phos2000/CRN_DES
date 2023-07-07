@@ -12,7 +12,7 @@ params_CRN$randomNums = runif(params_CRN$nRN)
 
 params_PSA = params
 rrStatinsASCVD_100draws = randomDraw("rrStatinsASCVD",params_PSA,100)
-n_cores = detectCores()
+n_cores = detectCores() - 1
 
 results_woCRN = mclapply(1:100, mc.cores = n_cores, function(i){
   print(paste0(i))
@@ -51,4 +51,4 @@ results_wCRN = mclapply(1:100, mc.cores = n_cores, function(i){
   return(result)
 })
 
-save(results_woCRN, results_wCRN, file = "rrStatinsASCVD100.RData")
+save(results_woCRN, results_wCRN, file = "output/rrStatinsASCVD100.RData")

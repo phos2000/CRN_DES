@@ -1,6 +1,6 @@
 ## ----setup, include=FALSE-----------------------------------------------------------------------------------------------------
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
-load.lib<-c("reshape2","tidyverse","ggrepel","dampack","kableExtra","flexsurv","readxl","haven","janitor","here","parallel", "Rcpp")
+load.lib<-c("reshape2","tidyverse","ggrepel","dampack","flexsurv","readxl","haven","janitor","here","parallel", "Rcpp")
 install.lib<-load.lib[!load.lib %in% installed.packages()]
 for(lib in install.lib) install.packages(lib,dependencies=TRUE)
 sapply(load.lib,require,character=TRUE)
@@ -794,26 +794,6 @@ exec.simulation <- function(inputs)
         
         get_mon_arrivals(env, per_resource = T)
 }
-
-results <- NULL
-attributes <- NULL
-
-for (strategy in 0:1){
-  params$strategy = strategy
-
-  run <- exec.simulation(params)
-  run$strategy <- strategy
-
-  at <- arrange(get_mon_attributes(env),name,key,time) #obtain attributes data
-  at$strategy <- strategy
-
-  if(is.null(results)) { results <- run } else  {results <- rbind(results, run)}
-  if(is.null(attributes)) { attributes <- at } else  {attributes <- rbind(attributes, at)}
-  rm(run)
-  rm(at)
-}
-
-
 
 ## ----cost-utility-func--------------------------------------------------------------------------------------------------------
 # set the cHealthcareNonCVD to be linear
