@@ -1001,8 +1001,8 @@ results %>% filter(resource != "time_in_model") %>% count(name, strategy, resour
 
 All events continues for 0s except time_in_model. Results only include all things that really happen.
 
-```{r trace}
-# trace = results %>% filter(name %in% repeatNames2 & resource == "get_CVD") %>% group_by(name, resource) %>% summarize(start_time = min(start_time)) %>%
+```{r traces}
+# traces = results %>% filter(name %in% repeatNames2 & resource == "get_CVD") %>% group_by(name, resource) %>% summarize(start_time = min(start_time)) %>%
 #   rbind(results %>% filter(!(name %in% repeatNames2) | resource != "get_CVD") %>%
 #           filter(resource != "time_in_model") %>%
 #           select(name, resource, start_time)) %>%
@@ -1010,35 +1010,35 @@ All events continues for 0s except time_in_model. Results only include all thing
 #   full_join(results %>% filter(resource == "time_in_model") %>% mutate(time_in_model = activity_time) %>% select(name, time_in_model), by = "name") %>%
 #   left_join(casted %>% select(name, initial_age = aAgeInitial), by = "name")
 
-# trace %>% filter(get_CVD == death_of_ASCVD)
+# traces %>% filter(get_CVD == death_of_ASCVD)
 
-trace = results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
+traces = results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
   left_join(casted %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
 
-if (is.null(trace$statins_major_adverse_event)) {trace$statins_major_adverse_event = NA}
+if (is.null(traces$statins_major_adverse_event)) {traces$statins_major_adverse_event = NA}
 ```
 
 ##Status QUO CEA
 
 1.  never get CVD, never die before horizon.\
-    **cost**: inputs\$cHealthcareNonCVD \* trace\$time_in_model\
-    **payoff**: inputs\$uHealthy \* trace\$time_in_model
+    **cost**: inputs\$cHealthcareNonCVD \* traces\$time_in_model\
+    **payoff**: inputs\$uHealthy \* traces\$time_in_model
 
 2.  never get CVD, die of background mortality before horizon\
-    **cost**: inputs\$cHealthcareNonCVD \* trace\$time_in_model\
-    **payoff**: inputs\$uHealthy \* trace\$time_in_model
+    **cost**: inputs\$cHealthcareNonCVD \* traces\$time_in_model\
+    **payoff**: inputs\$uHealthy \* traces\$time_in_model
 
 3.  get CVD, survive till horizon\
-    **cost**: inputs\$cHealthcareNonCVD \* trace\$time_in_model + inputs\$cNonFatalASCVD + inputs\$cAnnualFU_afterASCVD \* (trace\$time_in_model - trace\$get_CVD - 1)\
-    **payoff**: inputs\$uHealthy \* trace\$get_CVD + inputs\$uAfterASCVD\*(trace\$time_in_model - trace\$get_CVD)
+    **cost**: inputs\$cHealthcareNonCVD \* traces\$time_in_model + inputs\$cNonFatalASCVD + inputs\$cAnnualFU_afterASCVD \* (traces\$time_in_model - traces\$get_CVD - 1)\
+    **payoff**: inputs\$uHealthy \* traces\$get_CVD + inputs\$uAfterASCVD\*(traces\$time_in_model - traces\$get_CVD)
 
 4.  get CVD, die of first-year ASCVD\
-    **cost**: inputs\$cHealthcareNonCVD \* trace\$time_in_model + inputs\$cFatalASCVD\
-    **payoff**: inputs\$uHealthy \* trace\$get_CVD + inputs\$uAfterASCVD\*(trace\$time_in_model - trace\$get_CVD)
+    **cost**: inputs\$cHealthcareNonCVD \* traces\$time_in_model + inputs\$cFatalASCVD\
+    **payoff**: inputs\$uHealthy \* traces\$get_CVD + inputs\$uAfterASCVD\*(traces\$time_in_model - traces\$get_CVD)
 
 5.  get CVD, die after first-year ASCVD event\
-    **cost**: inputs\$cHealthcareNonCVD \* trace\$time_in_model + inputs\$cNonFatalASCVD + inputs\$cAnnualFU_afterASCVD \* (trace\$time_in_model - trace\$get_CVD - 1)\
-    **payoff**: inputs\$uHealthy \* trace\$get_CVD + inputs\$uAfterASCVD\*(trace\$time_in_model - trace\$get_CVD)
+    **cost**: inputs\$cHealthcareNonCVD \* traces\$time_in_model + inputs\$cNonFatalASCVD + inputs\$cAnnualFU_afterASCVD \* (traces\$time_in_model - traces\$get_CVD - 1)\
+    **payoff**: inputs\$uHealthy \* traces\$get_CVD + inputs\$uAfterASCVD\*(traces\$time_in_model - traces\$get_CVD)
 
 ## Statins CEA
 
@@ -1193,7 +1193,7 @@ adjusted_statins_utilities_discounted = function(inputs, statins_use, statins_mi
 
 
 ```{r cea}
-patientWcea = trace %>% 
+patientWcea = traces %>% 
   rowwise() %>%
   mutate(
   cost = basic_CVD_costs(params, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age) + adjustment_statins_costs(params, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
@@ -1201,7 +1201,7 @@ patientWcea = trace %>%
     )
 
 patientWcea %>%
-  kable(caption = "trace of simulated individuals with undiscounted cost and utilities") %>%
+  kable(caption = "traces of simulated individuals with undiscounted cost and utilities") %>%
   kable_styling() %>%
   scroll_box(height = "400px")
 
@@ -1263,7 +1263,7 @@ plot(df_cea, label = "all", txtsize = 16) +
 #   return(cost)
 # }
 # 
-# trace %>%
+# traces %>%
 #   mutate(cHealthcareNonCVD = cHealthcareNonCVD(inputs, time_in_model, initial_age))
 
 ```
@@ -1299,12 +1299,12 @@ RIPS_CVD_run = function(inputs){
 
   casted = setdiff(attributes, repeatSets) %>% select(-replication, -time) %>% spread(key, value)
   
-  trace = results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
+  traces = results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
   left_join(casted %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
 
-  if (is.null(trace$statins_major_adverse_event)) {trace$statins_major_adverse_event = NA}
+  if (is.null(traces$statins_major_adverse_event)) {traces$statins_major_adverse_event = NA}
   
-  patientWcea = trace %>% 
+  patientWcea = traces %>% 
     rowwise() %>%
     mutate(
       cost = basic_CVD_costs_discounted(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age) + adjustment_statins_costs_discounted(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
@@ -1338,23 +1338,23 @@ RIPS_CVD_run = function(inputs){
 # 
 #   casted1 = setdiff(o1$attributes, repeatSets1) %>% select(-replication, -time) %>% spread(key, value)
 #   
-#   trace1 = o1$results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
+#   traces1 = o1$results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
 #   left_join(casted1 %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
 # 
-#   if (is.null(trace1$statins_major_adverse_event)) {trace1$statins_major_adverse_event = NA}
+#   if (is.null(traces1$statins_major_adverse_event)) {traces1$statins_major_adverse_event = NA}
 # 
 # repeatSets2 = o2$attributes %>% filter((key == "aGetCVD" | key == "aStatinsMildAdverse" | key == "aStatinsMajorAdverse") & is.infinite(value))
 # 
 #   casted2 = setdiff(o2$attributes, repeatSets1) %>% select(-replication, -time) %>% spread(key, value)
 #   
-#   trace2 = o2$results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
+#   traces2 = o2$results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
 #   left_join(casted2 %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
 # 
-#   if (is.null(trace2$statins_major_adverse_event)) {trace2$statins_major_adverse_event = NA}
+#   if (is.null(traces2$statins_major_adverse_event)) {traces2$statins_major_adverse_event = NA}
 #   
-# which(trace1 != trace2, arr.ind = TRUE)
+# which(traces1 != traces2, arr.ind = TRUE)
 #   
-#   patientWcea = trace %>% 
+#   patientWcea = traces %>% 
 #     rowwise() %>%
 #     mutate(
 #       cost = basic_CVD_costs(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age),
@@ -1510,4 +1510,15 @@ test %>%
   geom_point()
 
 save(results_woCRN, results_wCRN, file = "rrStatinsASCVD100.RData")
+```
+
+
+# premake CRN to store
+```{r RData}
+params$vN = 100000
+params_CRN = params
+params_CRN$nRN = params_CRN$vN * length(rCRN)
+params_CRN$randomNums = runif(params_CRN$nRN)
+
+save(params_CRN, file = "params_CRN.RData")
 ```

@@ -144,14 +144,13 @@ discount <- function(value, A, ar=params$annual_discount_rate) value / (1+ar)^A
 
 
 ## ----generator----------------------------------------------------------------------------------------------------------------
-set.seed(114514)
 rCRN = 1:8
 names(rCRN) = c("nhanesNo", "rDeathWithoutCVD", "rGetCVD", "rDeathOfASCVD", "rDeathAfterASCVD", "rStatinsMildAdverse", "rStatinsMajorAdverse", "rDeathOfStatinsAdverse")
-
-params_CRN = params
-
-params_CRN$nRN = params_CRN$vN * length(rCRN)
-params_CRN$randomNums = runif(params_CRN$nRN)
+# 
+# params_CRN = params
+# 
+# params_CRN$nRN = params_CRN$vN * length(rCRN)
+# params_CRN$randomNums = runif(params_CRN$nRN)
 
 
 ## ----source-------------------------------------------------------------------------------------------------------------------
@@ -920,25 +919,25 @@ RIPS_CVD_run = function(inputs){
 
   casted = setdiff(attributes, repeatSets) %>% select(-replication, -time) %>% spread(key, value)
   
-  trace = results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
+  traces = results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
   left_join(casted %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
 
-  if (is.null(trace$statins_major_adverse_event)) {trace$statins_major_adverse_event = NA}
+  if (is.null(traces$statins_major_adverse_event)) {traces$statins_major_adverse_event = NA}
   
-  # patientWcea = trace %>% 
+  # patientWcea = traces %>% 
   #   rowwise() %>%
   #   mutate(
   #     cost_disc = basic_CVD_costs_discounted(inputs, death_after_ASCVD, death_of_ASCVD, death_without_CVD, get_CVD, time_in_model, initial_age) + adjustment_statins_costs_discounted(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model),
   #     util_disc = adjusted_statins_utilities_discounted(inputs, statins_use, statins_mild_adverse_event, statins_major_adverse_event, get_CVD, time_in_model))
 
-  cost_util = calc_cost_util(death_of_ASCVD_vec = trace$death_of_ASCVD,
-                             get_CVD_vec = trace$get_CVD, 
-                             time_in_model_vec = trace$time_in_model, 
-                             initial_age_vec = trace$initial_age,
-                             statins_use_vec = trace$statins_use, 
-                             statins_mild_adverse_event_vec = trace$statins_mild_adverse_event, 
-                             statins_major_adverse_event_vec = trace$statins_major_adverse_event, 
-                             n_pop = nrow(trace),
+  cost_util = calc_cost_util(death_of_ASCVD_vec = traces$death_of_ASCVD,
+                             get_CVD_vec = traces$get_CVD, 
+                             time_in_model_vec = traces$time_in_model, 
+                             initial_age_vec = traces$initial_age,
+                             statins_use_vec = traces$statins_use, 
+                             statins_mild_adverse_event_vec = traces$statins_mild_adverse_event, 
+                             statins_major_adverse_event_vec = traces$statins_major_adverse_event, 
+                             n_pop = nrow(traces),
                              cr = inputs$cont_discount_rate,
                              ar = inputs$annual_discount_rate,
                              bgcost_coef_vec = coef(inputs$model_bgcost), 
@@ -956,7 +955,7 @@ RIPS_CVD_run = function(inputs){
                              uPenaltyMildStatinAdverse = inputs$uPenaltyMildStatinAdverse,
                              uPenaltyMajorStatinAdverse = inputs$uPenaltyMajorStatinAdverse)
   
-  patientWcea = cbind(trace, cost_util)
+  patientWcea = cbind(traces, cost_util)
   
   strategyWcea = patientWcea %>% 
     group_by(strategy) %>%
@@ -973,132 +972,3 @@ RIPS_CVD_run = function(inputs){
 
   return(df_cea)
 } 
-
-## ----convergence--------------------------------------------------------------------------------------------------------------
-converge_compare = NULL
-n_cores = detectCores()
-
-for (vN in 10^(2:5)){
-  params$vN = vN
-  print(vN)
-  
-  converge = mclapply(1:5, mc.cores = n_cores, function(i){
-  
-  time_start <- Sys.time()
-  result = RIPS_CVD_run(params)
-  time_end <- Sys.time()
-  
-  result = result %>%
-    mutate(NHB = Effect*params$wtp - Cost,
-           vN = params$vN,
-           time = time_end - time_start)
-  
-  return(result)
-})
-  
-  if (is.null(converge_compare)){converge_compare = bind_rows(converge)} else {
-    converge_compare = rbind(converge_compare, bind_rows(converge))
-  }
-}
-
-save(converge_compare, file = "converge.RData")
-
-converge_compare %>%
-  group_by(Strategy, vN) %>%
-  mutate(#mean = mean(NHB),
-    distance = (NHB - mean(NHB))/(mean(NHB)))
-
-
-## ----woCRN--------------------------------------------------------------------------------------------------------------------
-params_PSA = params
-rrStatinsASCVD_100draws = randomDraw("rrStatinsASCVD",params_PSA,100)
-n_cores = detectCores()
-
-# results_woCRN = list()
-# results_woCRN$statins = data.frame(NULL)
-# results_woCRN$quo = data.frame(NULL)
-
-results_woCRN = mclapply(1:100, mc.cores = n_cores, function(i){
-  print(paste0(i))
-  params_PSA$rrStatinsASCVD = rrStatinsASCVD_100draws[i]
-  
-  time_start <- Sys.time()
-  result = RIPS_CVD_run(params_PSA)
-  time_end <- Sys.time()
-  
-  result = result %>%
-    mutate(NHB = Effect*params_PSA$wtp - Cost,
-           rrStatinsASCVD = rrStatinsASCVD_100draws[i],
-           time = time_end - time_start)
-  
-  return(result)
-})
-
-ref = bind_rows(results_woCRN)
-
-ref = ref %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% left_join(ref %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
-  mutate(INHB = NHB_statins - NHB_quo)
-  
-ref %>%
-  ggplot(aes(x = rrStatinsASCVD, y = INHB)) +
-  geom_line() +
-  geom_point()
-
-
-## ----wCRN---------------------------------------------------------------------------------------------------------------------
-params_PSA = params_CRN
-
-results_wCRN = mclapply(1:100, mc.cores = n_cores, function(i){
-  print(paste0(i))
-  params_PSA$rrStatinsASCVD = rrStatinsASCVD_100draws[i]
-  
-  time_start <- Sys.time()
-  result = RIPS_CVD_run(params_PSA)
-  time_end <- Sys.time()
-  
-  result = result %>%
-    mutate(NHB = Effect*params_PSA$wtp - Cost,
-           rrStatinsASCVD = rrStatinsASCVD_100draws[i],
-           time = time_end - time_start)
-  
-  return(result)
-})
-
-# results_wCRN = list()
-# results_wCRN$statins = data.frame(NULL)
-# results_wCRN$quo = data.frame(NULL)
-
-# for (i in 1:100){
-#   print(paste0(i))
-#   params_PSA$rrStatinsASCVD = rrStatinsASCVD_100draws[i]
-#   
-#   time_start = Sys.time()
-#   result = RIPS_CVD_run(params_PSA)
-#   time_end = Sys.time()
-#   result = result %>%
-#     mutate(NHB = Effect*params_PSA$wtp - Cost,
-#            rrStatinsASCVD = rrStatinsASCVD_100draws[i],
-#            time = time_end - time_start)
-#   
-#     if(is.null(results_wCRN$statins)){
-#       results_wCRN$statins <- result[result$Strategy == "Statins(2013 ACC/AHA)",]
-#     } else {results_wCRN$statins <- rbind.data.frame(results_wCRN$statins, result[result$Strategy == "Statins(2013 ACC/AHA)",])}
-#   
-#   if(is.null(results_wCRN$quo)){
-#       results_wCRN$quo <- result[result$Strategy == "Status Quo",]
-#   } else {results_wCRN$quo <- rbind.data.frame(results_wCRN$quo, result[result$Strategy == "Status Quo",])}
-#   
-# }
-
-test = bind_rows(results_wCRN)
-
-test = test %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% left_join(test %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
-  mutate(INHB = NHB_statins - NHB_quo)
-  
-test %>%
-  ggplot(aes(x = rrStatinsASCVD, y = INHB)) +
-  geom_line() +
-  geom_point()
-
-save(results_woCRN, results_wCRN, file = "rrStatinsASCVD100.RData")
-
