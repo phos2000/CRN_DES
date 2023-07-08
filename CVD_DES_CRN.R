@@ -134,10 +134,14 @@ RateToProb = function(rate, t){
 # rate = ProbToRate(pcr()/100)
 # days = rexp(1,rate)
 
-params$cont_discount_rate <- -log(1- params$annual_discount_rate) # Yearly Time Scale
-discounted <- function(undiscounted, start_year, end_year, rate = params$cont_discount_rate)
+# params$cont_discount_rate <- -log(1- params$annual_discount_rate) # Yearly Time Scale
+discounted <- function(undiscounted, start_year, end_year, rate = params$annual_discount_rate)
 {
-  undiscounted/ (exp(rate*(end_year-start_year)))
+  # undiscounted/ (exp(rate*(end_year-start_year)))
+  # in this way, 0-10 yr will be the same as 10-20 yr
+  # undiscounted should be the edge value instead of the sum
+  # a way: undiscounted / rate *(exp(-rate * start_year) - exp(-rate * end_year))
+  undiscounted / log(1 + rate) * (1 / (1+rate)^start_year - 1/ (1+rate)^end_year)
 }
 
 discount <- function(value, A, ar=params$annual_discount_rate) value / (1+ar)^A
@@ -915,7 +919,6 @@ RIPS_CVD_data = function(inputs){
                              statins_mild_adverse_event_vec = traces$statins_mild_adverse_event, 
                              statins_major_adverse_event_vec = traces$statins_major_adverse_event, 
                              n_pop = nrow(traces),
-                             cr = inputs$cont_discount_rate,
                              ar = inputs$annual_discount_rate,
                              bgcost_coef_vec = coef(inputs$model_bgcost), 
                              cvdpct_coef_vec = coef(inputs$model_cvdpct),
