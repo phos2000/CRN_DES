@@ -7,18 +7,66 @@ output:
     code_folding: "hide"
 ---
 
+```{r setup}
+library(tidyverse)
+```
+
 ***Purpose:*** Disease simulation techniques including Markov model, micro-simulation and discrete event simulation(DES) contribute to the decision-making progress for the health-related policies. Stochastic noise can always be distracting and overlap the true difference between strategies, which lead to more effort and higher cost in time and computational resource. Common random numbers(CRN) helps to reduce the variance between model runs and emphasize the effect of changing parameters of modeler's interest. Compared to micro-simulation, less research and application of CRN have been found among previous literature using DES for disease simulation modeling. We provide a application of CRN to demonstrate its advantages in DES. 
 
 ***Methods:***
 
 Based on 2017-2018 National Health and Nutrition Examination Survey database, we developed a DES model to evaluate the cost-effectiveness of statin treatment in people aged 40 to 80 in the US at risk of atherosclerotic cardiovascular disease(ASCVD) over a 10-year horizon. Every possible event withn an indvidual, including death due to background mortality, fatal ASCVD event, non-fatal ASCVD, death after ASCVD and statin adverse event was assigned an independent random number which is individual-specific and event-specific but stay the same ("common") across model runs. The random number was used to be compared to the alterable probability and determine the stochastic event.
 
+```{r check-patients}
+# PCErisk
+patients_wCRN %>% group_by(strategy) %>%
+  summarise(PCErisk = mean(PCErisk))
+
+# 1. never get CVD, die of background mortality before horizon
+patients_wCRN %>%
+  filter(is.na(get_CVD) & !is.na(death_without_CVD)) %>% 
+  group_by(strategy) %>%
+  summarise(pct = n() / 100000,
+            LE = mean(time_in_model),
+            cost = mean(cost_disc),
+            qaly = mean(util_disc))
+
+# 2. get CVD, die of first-year ASCVD
+patients_wCRN %>%
+  filter(!is.na(get_CVD) & !is.na(death_of_ASCVD)) %>% 
+  group_by(strategy) %>%
+  summarise(pct = n() / 100000,
+            LE = mean(time_in_model),
+            cost = mean(cost_disc),
+            qaly = mean(util_disc))
+
+# 3. get CVD, die after first-year ASCVD event
+patients_wCRN %>%
+  filter(!is.na(get_CVD) & !is.na(death_after_ASCVD)) %>% 
+  group_by(strategy) %>%
+  summarise(pct = n() / 100000,
+            LE = mean(time_in_model),
+            cost = mean(cost_disc),
+            qaly = mean(util_disc))
+
+patients_wCRN %>% 
+    group_by(strategy) %>%
+    summarize(
+      pct = n()/100000,
+      time_in_model = mean(time_in_model),
+      cost = mean(cost_disc), 
+      QALY = mean(util_disc))
+
+# There's no way that the same LE will bring different discounted qaly
+
+```
+
 ***Results:***
 
 1. sample size = 100000, 100 draws of one params
 
 ```{r integrate}
-all.files = sapply(1:2, function(x) paste0("~/Documents/GitHub/CRN_DES/output/rrStatinsASCVD-",x,".RData"))
+all.files = sapply(67:200, function(x) paste0("~/Documents/GitHub/CRN_DES/output_accre/rrStatinsASCVD-",x,".RData"))
 
 all_wCRN = NULL
 all_woCRN = NULL
@@ -28,6 +76,8 @@ for (file in all.files) {
   if(is.null(all_wCRN))     { all_wCRN  <- results_wCRN  } else { all_wCRN  <- rbind(all_wCRN, results_wCRN)}
   if(is.null(all_woCRN))    { all_woCRN <- results_woCRN } else { all_woCRN <- rbind(all_woCRN, results_woCRN)}
 }
+
+load("rrStatinsASCVD134.RData")
 
 woCRN = all_woCRN %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% left_join(all_woCRN %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
   mutate(INHB = NHB_statins - NHB_quo)
@@ -49,7 +99,7 @@ wCRN %>%
   labs(title = "With Common Random Number", x = "rrStatinsASCVD", y = "Incremental NHB") +
   theme_bw()
 
-
+save(all_wCRN, all_woCRN, file = "rrStatinsASCVD134.RData")
 ```
 
 2. distinguish strategies
@@ -88,10 +138,10 @@ converge_woCRN %>%
   mutate(StatusD = ifelse(Status == "D", "D", "")) %>%
   ggplot(aes(x = nPopLog, y = NHB, color = Strategy, label = StatusD)) +
   geom_line() +
-  geom_text() + 
+  # geom_text() + 
   scale_x_continuous(labels = 10^seq(1:5)) + 
   scale_color_manual(values = c("#AC3931", "#6699ff")) +
-  ylim(780000, 1000000) +
+  ylim(1200000, 1700000) +
   labs(title = "Without Common Random Number", x = "Sample Size", y = "Net Health Benefit") +
   theme_bw()
 
@@ -99,10 +149,10 @@ converge_wCRN %>%
   mutate(StatusD = ifelse(Status == "D", "D", "")) %>%
   ggplot(aes(x = nPopLog, y = NHB, color = Strategy, label = StatusD)) +
   geom_line() +
-  geom_text() +
+  # geom_text() +
   scale_x_continuous(labels = 10^seq(1:5)) + 
   scale_color_manual(values = c("#AC3931", "#6699ff")) + 
-  ylim(780000, 1000000) +
+  ylim(1200000, 1700000) +
   labs(title = "With Common Random Number", x = "Sample Size", y = "Net Health Benefit") +
   theme_bw()
 ```
