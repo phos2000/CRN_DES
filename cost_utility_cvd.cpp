@@ -113,7 +113,7 @@ List calc_cost_util(NumericVector death_of_ASCVD_vec,
       bgcost_coef_vec, cvdpct_coef_vec, ceil(age_end_Healthy), cAnnualFU_afterASCVD,
              cNonFatalASCVD);
     
-    cost_disc_vec(id) += discounted(cost_vec(id), 0, age_end_Healthy, cr);
+    cost_disc_vec(id) += discounted(cost_vec(id), 0, age_end_Healthy - initial_age, cr);
     
     // FatalASCVD
     if(!NumericVector::is_na(get_CVD) && !NumericVector::is_na(death_of_ASCVD)) {

@@ -460,7 +460,7 @@ initialize_patient <- function(traj, inputs)
                 # NHANES version
                 set_attribute("nhanesNo",         function() ifelse(
                   is.null(inputs$randomNums),
-                  sample(1:nrow(nhanes_pop), 1, prob=1/nhanes_pop$WTMEC2YR),
+                  sample(1:nrow(nhanes_pop), 1, prob=nhanes_pop$WTMEC2YR),
                   which(nhanes_pop$cum_weight>=inputs$randomNums[(get_attribute(env,"patientID"))*length(rCRN) + rCRN["nhanesNo"]])[1])) %>%
                 set_attribute("Gender",     function() nhanes_pop$RIAGENDR[get_attribute(env, "nhanesNo")]) %>%
                 set_attribute("Age",        function() nhanes_pop$RIDAGEYR[get_attribute(env, "nhanesNo")]) %>% 
@@ -611,7 +611,8 @@ years_till_get_CVD <- function(inputs)
   race_pcr = race_convert(get_attribute(env, "Race")) 
   
   prob = get_attribute(env, "PCErisk")
-  rr = ifelse(inputs$strategy == 1, inputs$rrStatinsASCVD, 1)
+  useStatins = get_attribute(env, "aUseStatins")
+  rr = ifelse(useStatins == 1, inputs$rrStatinsASCVD, 1)
   
   # 10-year probability to 1-year rate
   years = ifelse(is.null(inputs$randomNums), rexp(1,ProbToRate(prob, 10)*rr), qexp(inputs$randomNums[(get_attribute(env,"patientID"))*length(rCRN) + rCRN["rGetCVD"]], ProbToRate(prob, 10)*rr))
@@ -748,11 +749,6 @@ event_registry <- list(
              time_to_event = function(inputs) inputs$vHorizon,
              func          = terminate,
              reactive      = FALSE),
-        # list(name          = "Use Statins",
-        #      attr          = "aUseStatins",
-        #      time_to_event = years_till_use_statins,
-        #      func          = event_use_statins,
-        #      reactive      = FALSE),
         list(name          = "Mild Adverse for Statins",
              attr          = "aStatinsMildAdverse",
              time_to_event = years_till_statins_mild_adverse,
@@ -901,7 +897,7 @@ RIPS_CVD_data = function(inputs){
   casted = setdiff(attributes, repeatSets) %>% select(-replication, -time) %>% spread(key, value)
   
   traces = results %>% select(-start_time, -activity_time, -replication) %>% spread(resource, end_time) %>% 
-    left_join(casted %>% select(name, strategy, statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
+    left_join(casted %>% rename(statins_use = aUseStatins, initial_age = AgeInitial), by = c("name", "strategy"))
   
   if (is.null(traces$statins_major_adverse_event)) {traces$statins_major_adverse_event = NA}
   
@@ -961,4 +957,26 @@ RIPS_CVD_run = function(inputs){
     left_join(strategyWcea %>% select(Strategy = strategy, LE = time_in_model))
 
   return(df_cea)
-} 
+}
+
+strategy_compare = function(patientWcea, inputs){
+  strategyWcea = patientWcea %>% 
+    group_by(strategy) %>%
+    summarize(
+      time_in_model = mean(time_in_model),
+      cost = mean(cost_disc), 
+      QALY = mean(util_disc)) %>%
+    mutate(strategy = ifelse(strategy == 1, "Treatment", "Status Quo"))
+  
+  df_cea = calculate_icers(cost = strategyWcea$cost,
+                           effect = strategyWcea$QALY,
+                           strategies = strategyWcea$strategy) %>%
+    left_join(strategyWcea %>% select(Strategy = strategy, LE = time_in_model)) %>%
+    mutate(NHB = Effect*inputs$wtp - Cost)
+  
+  # df_cea = df_cea %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% 
+  #   left_join(df_cea %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
+  #   mutate(INHB = NHB_statins - NHB_quo)
+  
+  return(df_cea)
+}

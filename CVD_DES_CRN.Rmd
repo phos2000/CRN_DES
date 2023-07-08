@@ -509,7 +509,7 @@ initialize_patient <- function(traj, inputs)
                 # NHANES version
                 set_attribute("nhanesNo",         function() ifelse(
                   is.null(inputs$randomNums),
-                  sample(1:nrow(nhanes_pop), 1, prob=1/nhanes_pop$WTMEC2YR),
+                  sample(1:nrow(nhanes_pop), 1, prob=nhanes_pop$WTMEC2YR),
                   which(nhanes_pop$cum_weight>=inputs$randomNums[(get_attribute(env,"patientID"))*length(rCRN) + rCRN["nhanesNo"]])[1])) %>%
                 set_attribute("Gender",     function() nhanes_pop$RIAGENDR[get_attribute(env, "nhanesNo")]) %>%
                 set_attribute("Age",        function() nhanes_pop$RIDAGEYR[get_attribute(env, "nhanesNo")]) %>% 
@@ -682,7 +682,8 @@ years_till_get_CVD <- function(inputs)
   race_pcr = race_convert(get_attribute(env, "Race")) 
   
   prob = get_attribute(env, "PCErisk")
-  rr = ifelse(inputs$strategy == 1, inputs$rrStatinsASCVD, 1)
+  useStatins = get_attribute(env, "aUseStatins")
+  rr = ifelse(useStatins == 1, inputs$rrStatinsASCVD, 1)
   
   # 10-year probability to 1-year rate
   years = ifelse(is.null(inputs$randomNums), rexp(1,ProbToRate(prob, 10)*rr), qexp(inputs$randomNums[(get_attribute(env,"patientID"))*length(rCRN) + rCRN["rGetCVD"]], ProbToRate(prob, 10)*rr))
@@ -1382,7 +1383,7 @@ for (vN in 10^(2:5)){
   params$vN = vN
   print(vN)
   
-  converge = mclapply(1:5, mc.cores = n_cores, function(i){
+  converge = mclapply(1:10, mc.cores = n_cores, function(i){
   
   time_start <- Sys.time()
   result = RIPS_CVD_run(params)

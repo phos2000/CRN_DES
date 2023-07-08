@@ -15,4 +15,96 @@ Based on 2017-2018 National Health and Nutrition Examination Survey database, we
 
 ***Results:***
 
+1. sample size = 100000, 100 draws of one params
+
+```{r integrate}
+all.files = sapply(1:2, function(x) paste0("~/Documents/GitHub/CRN_DES/output/rrStatinsASCVD-",x,".RData"))
+
+all_wCRN = NULL
+all_woCRN = NULL
+
+for (file in all.files) {
+  load(file)
+  if(is.null(all_wCRN))     { all_wCRN  <- results_wCRN  } else { all_wCRN  <- rbind(all_wCRN, results_wCRN)}
+  if(is.null(all_woCRN))    { all_woCRN <- results_woCRN } else { all_woCRN <- rbind(all_woCRN, results_woCRN)}
+}
+
+woCRN = all_woCRN %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% left_join(all_woCRN %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
+  mutate(INHB = NHB_statins - NHB_quo)
+  
+woCRN %>%
+  ggplot(aes(x = rrStatinsASCVD, y = INHB)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Without Common Random Number", x = "rrStatinsASCVD", y = "Incremental NHB") +
+  theme_bw()
+
+wCRN = all_wCRN %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% left_join(all_wCRN %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
+  mutate(INHB = NHB_statins - NHB_quo)
+  
+wCRN %>%
+  ggplot(aes(x = rrStatinsASCVD, y = INHB)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "With Common Random Number", x = "rrStatinsASCVD", y = "Incremental NHB") +
+  theme_bw()
+
+
+```
+
+2. distinguish strategies
+
+sample size from 10, to, 100000
+
+```{r converge}
+# load("converge100k.RData")
+# save(patients_woCRN, patients_wCRN, file = "converge100k.RData")
+# patients_wCRN = bind_rows(patientWcea_wCRN)
+# patients_woCRN = bind_rows(patientWcea_woCRN)
+
+converge_wCRN = strategy_compare(patients_wCRN[1:20,], params_CRN)
+converge_woCRN = strategy_compare(patients_woCRN[1:20,], params)
+
+for (size in round(10^(seq(1.25, 5, by = 0.25)))){
+  converge_wCRN = rbind(converge_wCRN, strategy_compare(patients_wCRN[1:(2*size),], params_CRN))
+  converge_woCRN = rbind(converge_woCRN, strategy_compare(patients_woCRN[1:(2*size),], params))
+}
+
+converge_wCRN$nPop = rep(round(10^seq(1, 5, by = 0.25)), each = 2)
+converge_woCRN$nPop = rep(round(10^seq(1, 5, by = 0.25)), each = 2)
+
+converge_wCRN$nPopLog = rep(seq(1,5,by = 0.25), each = 2)
+converge_woCRN$nPopLog = rep(seq(1,5,by = 0.25), each = 2)
+
+converge_woCRN %>% 
+  ggplot(aes(x = nPop, y = NHB, color = Strategy)) +
+  geom_line()
+
+converge_wCRN %>% 
+  ggplot(aes(x = nPop, y = NHB, color = Strategy)) +
+  geom_line()
+
+converge_woCRN %>% 
+  mutate(StatusD = ifelse(Status == "D", "D", "")) %>%
+  ggplot(aes(x = nPopLog, y = NHB, color = Strategy, label = StatusD)) +
+  geom_line() +
+  geom_text() + 
+  scale_x_continuous(labels = 10^seq(1:5)) + 
+  scale_color_manual(values = c("#AC3931", "#6699ff")) +
+  ylim(780000, 1000000) +
+  labs(title = "Without Common Random Number", x = "Sample Size", y = "Net Health Benefit") +
+  theme_bw()
+
+converge_wCRN %>% 
+  mutate(StatusD = ifelse(Status == "D", "D", "")) %>%
+  ggplot(aes(x = nPopLog, y = NHB, color = Strategy, label = StatusD)) +
+  geom_line() +
+  geom_text() +
+  scale_x_continuous(labels = 10^seq(1:5)) + 
+  scale_color_manual(values = c("#AC3931", "#6699ff")) + 
+  ylim(780000, 1000000) +
+  labs(title = "With Common Random Number", x = "Sample Size", y = "Net Health Benefit") +
+  theme_bw()
+```
+
 ***Conclusions:***

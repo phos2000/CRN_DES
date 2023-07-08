@@ -15,11 +15,11 @@ params_PSA = params
 params_PSA$rrStatinsASCVD = rrStatinsASCVD_1draws
 
 time_start <- Sys.time()
-patientWcea = mclapply(1:10, mc.cores = n_cores, function(i){
+patientWcea_woCRN = mclapply(1:10, mc.cores = n_cores, function(i){
   RIPS_CVD_data(params_PSA)
 })
   
-strategyWcea = bind_rows(patientWcea) %>% 
+strategyWcea = bind_rows(patientWcea_woCRN) %>% 
   group_by(strategy) %>%
   summarize(
     time_in_model = mean(time_in_model),
@@ -36,7 +36,7 @@ time_end <- Sys.time()
   
 results_woCRN = results_woCRN %>%
   mutate(NHB = Effect*params_PSA$wtp - Cost,
-         rrStatinsASCVD = rrStatinsASCVD_1draws,
+         #rrStatinsASCVD = rrStatinsASCVD_1draws,
          time = time_end - time_start)
 
 
@@ -46,13 +46,13 @@ params_PSA = params_CRN
 params_PSA$rrStatinsASCVD = rrStatinsASCVD_1draws
 
 time_start <- Sys.time()
-patientWcea = mclapply(1:10, mc.cores = n_cores, function(i){
+patientWcea_wCRN = mclapply(1:10, mc.cores = n_cores, function(i){
   params_PSA$nRN = params_CRN$vN * length(rCRN)
   params_PSA$randomNums = params_CRN$randomNums[((i-1)*params_PSA$nRN +1):(i*params_PSA$nRN)]
   RIPS_CVD_data(params_PSA)
 })
 
-strategyWcea = bind_rows(patientWcea) %>% 
+strategyWcea = bind_rows(patientWcea_wCRN) %>% 
   group_by(strategy) %>%
   summarize(
     time_in_model = mean(time_in_model),
@@ -69,7 +69,8 @@ time_end <- Sys.time()
   
 results_wCRN = results_wCRN %>%
   mutate(NHB = Effect*params_PSA$wtp - Cost,
-         rrStatinsASCVD = rrStatinsASCVD_1draws,
+         #rrStatinsASCVD = rrStatinsASCVD_1draws,
          time = time_end - time_start)
 
 save(results_woCRN, results_wCRN, file = paste0("output/rrStatinsASCVD-", x, ".RData"))
+# save(patientWcea_woCRN, patientWcea_wCRN, results_woCRN, results_wCRN, file = "converge100k.RData")
