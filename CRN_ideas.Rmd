@@ -63,43 +63,47 @@ patients_wCRN %>%
 
 ***Results:***
 
-1. sample size = 100000, 100 draws of one params
+1. sample size = 100000, 500 draws of one params
 
 ```{r integrate}
-all.files = sapply(67:200, function(x) paste0("~/Documents/GitHub/CRN_DES/output_accre/rrStatinsASCVD-",x,".RData"))
+all.files = sapply(1:520, function(x) paste0("~/Documents/GitHub/CRN_DES/output/rrStatinsASCVD-",x,".RData"))
 
 all_wCRN = NULL
 all_woCRN = NULL
 
 for (file in all.files) {
-  load(file)
-  if(is.null(all_wCRN))     { all_wCRN  <- results_wCRN  } else { all_wCRN  <- rbind(all_wCRN, results_wCRN)}
-  if(is.null(all_woCRN))    { all_woCRN <- results_woCRN } else { all_woCRN <- rbind(all_woCRN, results_woCRN)}
+  if (file.exists(file) & file.info(file)$size > 1) {
+    load(file)
+    if(is.null(all_wCRN))     { all_wCRN  <- results_wCRN  } else { all_wCRN  <- rbind(all_wCRN, results_wCRN)}
+    if(is.null(all_woCRN))    { all_woCRN <- results_woCRN } else { all_woCRN <- rbind(all_woCRN, results_woCRN)}
+  }
 }
-
-load("rrStatinsASCVD134.RData")
 
 woCRN = all_woCRN %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% left_join(all_woCRN %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
   mutate(INHB = NHB_statins - NHB_quo)
-  
-woCRN %>%
-  ggplot(aes(x = rrStatinsASCVD, y = INHB)) +
-  geom_line() +
-  geom_point() +
-  labs(title = "Without Common Random Number", x = "rrStatinsASCVD", y = "Incremental NHB") +
-  theme_bw()
 
 wCRN = all_wCRN %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% left_join(all_wCRN %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
   mutate(INHB = NHB_statins - NHB_quo)
   
+woCRN %>%
+  ggplot(aes(x = rrStatinsASCVD, y = INHB)) +
+  # geom_line() +
+  geom_point(size = 0.5) +
+  geom_smooth() +
+  ylim(-2500, 13000) +
+  labs(title = "Without Common Random Number", x = "rrStatinsASCVD", y = "Incremental NHB") +
+  theme_bw()
+
 wCRN %>%
   ggplot(aes(x = rrStatinsASCVD, y = INHB)) +
-  geom_line() +
-  geom_point() +
+  # geom_line() +
+  geom_point(size = 0.5) +
+  geom_smooth() +
+  ylim(-2500, 13000) +
   labs(title = "With Common Random Number", x = "rrStatinsASCVD", y = "Incremental NHB") +
   theme_bw()
 
-save(all_wCRN, all_woCRN, file = "rrStatinsASCVD134.RData")
+save(all_wCRN, all_woCRN, file = "rrStatinsASCVD501.RData")
 ```
 
 2. distinguish strategies
@@ -158,3 +162,5 @@ converge_wCRN %>%
 ```
 
 ***Conclusions:***
+
+
