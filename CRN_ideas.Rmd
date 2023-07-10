@@ -9,6 +9,8 @@ output:
 
 ```{r setup}
 library(tidyverse)
+
+options("scipen"=1000, "digits"=4)
 ```
 
 ***Purpose:*** Disease simulation techniques including Markov model, micro-simulation and discrete event simulation(DES) contribute to the decision-making progress for the health-related policies. Stochastic noise can always be distracting and overlap the true difference between strategies, which lead to more effort and higher cost in time and computational resource. Common random numbers(CRN) helps to reduce the variance between model runs and emphasize the effect of changing parameters of modeler's interest. Compared to micro-simulation, less research and application of CRN have been found among previous literature using DES for disease simulation modeling. We provide a application of CRN to demonstrate its advantages in DES. 
@@ -79,29 +81,48 @@ for (file in all.files) {
   }
 }
 
+all_woCRN  = all_woCRN %>% rename(NMB = NHB) %>%
+  mutate(NHB = Effect - Cost/params$wtp)
+
+all_wCRN  = all_wCRN %>% rename(NMB = NHB) %>%
+  mutate(NHB = Effect - Cost/params$wtp)
+
 woCRN = all_woCRN %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% left_join(all_woCRN %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
-  mutate(INHB = NHB_statins - NHB_quo)
+  mutate(INHB = NHB_statins - NHB_quo,
+         group = 0)
 
 wCRN = all_wCRN %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% left_join(all_wCRN %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
-  mutate(INHB = NHB_statins - NHB_quo)
+  mutate(INHB = NHB_statins - NHB_quo,
+         group = 1)
   
 woCRN %>%
   ggplot(aes(x = rrStatinsASCVD, y = INHB)) +
   # geom_line() +
-  geom_point(size = 0.5) +
-  geom_smooth() +
-  ylim(-2500, 13000) +
+  geom_point(size = 1) +
+  geom_smooth(alpha = 0.5) +
   labs(title = "Without Common Random Number", x = "rrStatinsASCVD", y = "Incremental NHB") +
   theme_bw()
 
 wCRN %>%
   ggplot(aes(x = rrStatinsASCVD, y = INHB)) +
   # geom_line() +
-  geom_point(size = 0.5) +
-  geom_smooth() +
-  ylim(-2500, 13000) +
+  geom_point(size = 1) +
+  geom_smooth(alpha = 0.5) +
   labs(title = "With Common Random Number", x = "rrStatinsASCVD", y = "Incremental NHB") +
   theme_bw()
+
+rr501 = rbind(woCRN, wCRN) %>%
+  mutate(group = factor(group, levels = 0:1, labels = c("without CRNs", "with CRNs")))
+
+rrStatins501 = 
+  rr501 %>%
+  ggplot(aes(x = rrStatinsASCVD, y = INHB)) +
+  geom_point(size = 1) +
+  geom_smooth(alpha = 0.5) +
+  facet_wrap(. ~ group) +
+  labs(x = "Statin treatment efficacy, RR of incident ASCVD", y = "Incremental Net Health Benefit (in QALYs)") +
+  theme_bw() +
+  scale_x_continuous(labels = scales::comma)
 
 save(all_wCRN, all_woCRN, file = "rrStatinsASCVD501.RData")
 ```
@@ -130,13 +151,32 @@ converge_woCRN$nPop = rep(round(10^seq(1, 5, by = 0.25)), each = 2)
 converge_wCRN$nPopLog = rep(seq(1,5,by = 0.25), each = 2)
 converge_woCRN$nPopLog = rep(seq(1,5,by = 0.25), each = 2)
 
-converge_woCRN %>% 
-  ggplot(aes(x = nPop, y = NHB, color = Strategy)) +
-  geom_line()
+converge_wCRN$group = 1
+converge_woCRN$group = 0
 
-converge_wCRN %>% 
-  ggplot(aes(x = nPop, y = NHB, color = Strategy)) +
-  geom_line()
+converge = rbind(converge_woCRN, converge_wCRN) %>%
+  mutate(group = factor(group, levels = 0:1, labels = c("without CRNs", "with CRNs")),
+         Strategy = ifelse(Strategy == "Status Quo", "No Treatment", "Statin Treatment"))
+
+converge100k = converge %>%
+  ggplot(aes(x = nPopLog, y = NHB, color = Strategy)) +
+  geom_line() +
+  facet_grid(. ~ group) +
+  scale_x_continuous(labels = 10^seq(1:5)) + 
+  scale_color_manual(values = c("#AC3931", "#6699ff")) +
+  labs(x = "Sample Size", y = "Net Health Benefit (in QALYs)") +
+  theme_bw()
+#+
+  # scale_x_continuous(labels = scales::comma)
+  # theme(legend.position="top")
+
+# converge_woCRN %>% 
+#   ggplot(aes(x = nPop, y = NHB, color = Strategy)) +
+#   geom_line()
+# 
+# converge_wCRN %>% 
+#   ggplot(aes(x = nPop, y = NHB, color = Strategy)) +
+#   geom_line()
 
 converge_woCRN %>% 
   mutate(StatusD = ifelse(Status == "D", "D", "")) %>%
@@ -145,7 +185,6 @@ converge_woCRN %>%
   # geom_text() + 
   scale_x_continuous(labels = 10^seq(1:5)) + 
   scale_color_manual(values = c("#AC3931", "#6699ff")) +
-  ylim(1200000, 1700000) +
   labs(title = "Without Common Random Number", x = "Sample Size", y = "Net Health Benefit") +
   theme_bw()
 
@@ -156,9 +195,22 @@ converge_wCRN %>%
   # geom_text() +
   scale_x_continuous(labels = 10^seq(1:5)) + 
   scale_color_manual(values = c("#AC3931", "#6699ff")) + 
-  ylim(1200000, 1700000) +
   labs(title = "With Common Random Number", x = "Sample Size", y = "Net Health Benefit") +
   theme_bw()
+```
+
+```{r ggarrange}
+library(ggpubr)
+
+figure = ggarrange(rrStatins501, converge100k,
+                   legend = "bottom",
+                   nrow = 2, heights = c(0.45, 0.55),
+                   labels = "AUTO")
+
+annotate_figure(figure, 
+                bottom = text_grob("Figure. Panel A shows the effect of CRNs (left: No CRNs; right: CRNs) on model outputs through runs with varying RR of ASCVD"))
+
+ggsave("SMDM.png", height = 8)
 ```
 
 ***Conclusions:***

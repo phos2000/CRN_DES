@@ -975,7 +975,7 @@ strategy_compare = function(patientWcea, inputs){
                            effect = strategyWcea$QALY,
                            strategies = strategyWcea$strategy) %>%
     left_join(strategyWcea %>% select(Strategy = strategy, LE = time_in_model)) %>%
-    mutate(NHB = Effect*inputs$wtp - Cost)
+    mutate(NHB = Effect - Cost/inputs$wtp)
   
   # df_cea = df_cea %>% filter(Strategy == "Statins(2013 ACC/AHA)") %>% 
   #   left_join(df_cea %>% filter(Strategy == "Status Quo"), by = c("rrStatinsASCVD", "time"), suffix = c("_statins", "_quo")) %>%
